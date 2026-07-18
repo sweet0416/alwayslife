@@ -141,7 +141,7 @@ function renderStats(stats = {}) {
 function popupHtml(point) {
   const location = [point.address, point.city, point.province, point.country].filter(Boolean).join(" / ");
   const rows = [
-    ["时间", point.time || "-"],
+    ["时间", point.display_time || point.time || "-"],
     ["位置", location || "-"],
     ["经纬度", `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`],
     ["海拔", point.altitude ?? ""],
@@ -194,4 +194,3 @@ function escapeHtml(value) {
     }[char];
   });
 }
-

@@ -9,6 +9,7 @@ services:
     environment:
       FOOTPRINT_CSV: /project/data/footprint.csv
       FOOTPRINT_CONFIG: /project/config.json
+      TZ: "${TZ:-Asia/Shanghai}"
       TILE_URL: "${TILE_URL:-https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png}"
       TILE_ATTRIBUTION: "${TILE_ATTRIBUTION:-&copy; OpenStreetMap contributors}"
     healthcheck:

@@ -12,7 +12,7 @@ DEFAULT_CSV_PATH = Path(os.getenv("FOOTPRINT_CSV", "./data/footprint.csv"))
 DEFAULT_CONFIG_PATH = Path(os.getenv("FOOTPRINT_CONFIG", "./config.json"))
 
 FIELD_ALIASES: dict[str, list[str]] = {
-    "time": ["时间", "日期", "timestamp", "time", "date", "datetime", "记录时间", "创建时间"],
+    "time": ["时间", "日期", "timestamp", "time", "date", "datetime", "dataTime", "记录时间", "创建时间"],
     "longitude": ["经度", "longitude", "lng", "lon", "long", "x"],
     "latitude": ["纬度", "latitude", "lat", "y"],
     "address": ["地址", "address", "位置", "地点", "place", "name"],
@@ -122,6 +122,7 @@ def normalize_row(row: dict[str, str], mapping: dict[str, str | None]) -> dict[s
 
     raw_time = get_value(row, mapping.get("time"))
     parsed_time = parse_time(raw_time)
+    display_time = format_time(parsed_time) if parsed_time else raw_time
     city = get_value(row, mapping.get("city"))
     province = get_value(row, mapping.get("province"))
     country = get_value(row, mapping.get("country"))
@@ -136,6 +137,7 @@ def normalize_row(row: dict[str, str], mapping: dict[str, str | None]) -> dict[s
 
     return {
         "time": raw_time,
+        "display_time": display_time,
         "date": parsed_time.date().isoformat() if parsed_time else "",
         "timestamp": parsed_time.isoformat() if parsed_time else "",
         "timestamp_sort": parsed_time.isoformat() if parsed_time else raw_time,
@@ -160,8 +162,8 @@ def build_stats(points: list[dict[str, Any]]) -> dict[str, Any]:
         "total_points": len(points),
         "city_count": len(cities),
         "country_count": len(countries),
-        "earliest_time": dated[0]["time"] if dated else "",
-        "latest_time": dated[-1]["time"] if dated else "",
+        "earliest_time": dated[0]["display_time"] if dated else "",
+        "latest_time": dated[-1]["display_time"] if dated else "",
     }
 
 
@@ -169,6 +171,15 @@ def parse_time(value: str) -> datetime | None:
     text = (value or "").strip()
     if not text:
         return None
+
+    if text.isdigit():
+        try:
+            number = int(text)
+            if number > 10_000_000_000:
+                number = number / 1000
+            return datetime.fromtimestamp(number)
+        except (OSError, OverflowError, ValueError):
+            pass
 
     try:
         return datetime.fromisoformat(text.replace("Z", "+00:00"))
@@ -181,6 +192,10 @@ def parse_time(value: str) -> datetime | None:
         except ValueError:
             continue
     return None
+
+
+def format_time(value: datetime) -> str:
+    return value.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def parse_float(value: str) -> float | None:
@@ -201,4 +216,3 @@ def get_value(row: dict[str, str], field: str | None) -> str:
 
 def normalize_name(value: str) -> str:
     return (value or "").strip().lower().replace(" ", "").replace("_", "").replace("-", "")
-
