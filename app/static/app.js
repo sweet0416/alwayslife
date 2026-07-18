@@ -26,6 +26,7 @@ async function init() {
   state.map = L.map("map", { preferCanvas: true }).setView([35.8617, 104.1954], 4);
   L.tileLayer(config.tile_url, {
     maxZoom: 19,
+    noWrap: true,
     attribution: config.tile_attribution,
   }).addTo(state.map);
 
@@ -42,19 +43,21 @@ async function loadSummary() {
     renderStats(data.stats);
     hydrateDateControls(data.stats.dates || []);
 
+    state.map.invalidateSize();
     if (data.stats.bounds) {
       state.isProgrammaticMove = true;
-      state.map.fitBounds(
-        [
-          [data.stats.bounds.south, data.stats.bounds.west],
-          [data.stats.bounds.north, data.stats.bounds.east],
-        ],
-        { maxZoom: 14, padding: [20, 20] },
-      );
-      window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        state.map.invalidateSize();
+        state.map.fitBounds(
+          [
+            [data.stats.bounds.south, data.stats.bounds.west],
+            [data.stats.bounds.north, data.stats.bounds.east],
+          ],
+          { maxZoom: 14, padding: [20, 20] },
+        );
         state.isProgrammaticMove = false;
         loadVisibleFootprints();
-      }, 300);
+      });
     } else {
       await loadVisibleFootprints();
     }
@@ -105,6 +108,7 @@ async function loadVisibleFootprints() {
     const data = await fetchJson(`/api/footprints?${params.toString()}`);
     if (requestId !== state.requestId) return;
     state.points = data.points || [];
+    state.map.invalidateSize();
     render(data);
   } catch (error) {
     if (requestId !== state.requestId) return;
