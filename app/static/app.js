@@ -4,6 +4,7 @@ const state = {
   layers: [],
   map: null,
   canvasLayer: null,
+  trackLayer: null,
   summary: null,
   requestId: 0,
   isProgrammaticMove: false,
@@ -46,6 +47,7 @@ async function init() {
   }).addTo(state.map);
 
   state.canvasLayer = new CanvasPointsLayer();
+  state.trackLayer = new CanvasTrackLayer();
   bindControls();
   await loadSummary();
 }
@@ -141,6 +143,7 @@ function render(meta = {}) {
 
   if (!state.points.length) {
     state.canvasLayer.removeFrom(state.map);
+    state.trackLayer.removeFrom(state.map);
     showEmpty("当前地图范围或筛选条件下没有足迹点。");
     return;
   }
@@ -148,17 +151,15 @@ function render(meta = {}) {
 
   if (state.mode === "heat") {
     state.canvasLayer.removeFrom(state.map);
+    state.trackLayer.removeFrom(state.map);
     const heatData = state.points.map((point) => [point.latitude, point.longitude, 0.7]);
     addLayer(L.heatLayer(heatData, { radius: 22, blur: 18, maxZoom: 12 }));
   } else if (state.mode === "line") {
     state.canvasLayer.removeFrom(state.map);
-    addLayer(
-      L.polyline(
-        state.points.map((point) => [point.latitude, point.longitude]),
-        { color: "#2563eb", opacity: 0.72, smoothFactor: lineSmoothFactor(), weight: 3 },
-      ),
-    );
+    state.trackLayer.setPoints(state.points);
+    state.trackLayer.addTo(state.map);
   } else {
+    state.trackLayer.removeFrom(state.map);
     state.canvasLayer.setPoints(state.points);
     state.canvasLayer.addTo(state.map);
   }
@@ -386,5 +387,79 @@ const CanvasPointsLayer = L.Layer.extend({
         .setContent(popupHtml(nearest))
         .openOn(this.map);
     }
+  },
+});
+
+const CanvasTrackLayer = L.Layer.extend({
+  initialize() {
+    this.points = [];
+    this.canvas = L.DomUtil.create("canvas", "leaflet-canvas-track");
+    this.ctx = this.canvas.getContext("2d");
+    this.redrawFrame = null;
+  },
+
+  setPoints(points) {
+    this.points = points || [];
+    this.redraw();
+  },
+
+  onAdd(map) {
+    this.map = map;
+    map.getPanes().overlayPane.appendChild(this.canvas);
+    map.on("moveend zoomend resize", this.scheduleRedraw, this);
+    this.redraw();
+  },
+
+  onRemove(map) {
+    if (this.canvas.parentNode) L.DomUtil.remove(this.canvas);
+    map.off("moveend zoomend resize", this.scheduleRedraw, this);
+    if (this.redrawFrame) cancelAnimationFrame(this.redrawFrame);
+    this.redrawFrame = null;
+  },
+
+  scheduleRedraw() {
+    if (this.redrawFrame) return;
+    this.redrawFrame = requestAnimationFrame(() => {
+      this.redrawFrame = null;
+      this.redraw();
+    });
+  },
+
+  redraw() {
+    if (!this.map || !this.ctx || !this.canvas.parentNode) return;
+
+    const drawBounds = this.map.getBounds().pad(0.15);
+    const topLeft = this.map.latLngToLayerPoint(drawBounds.getNorthWest());
+    const bottomRight = this.map.latLngToLayerPoint(drawBounds.getSouthEast());
+    const size = bottomRight.subtract(topLeft);
+
+    L.DomUtil.setPosition(this.canvas, topLeft);
+    this.canvas.width = Math.max(1, Math.ceil(size.x));
+    this.canvas.height = Math.max(1, Math.ceil(size.y));
+
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = this.map.getZoom() >= 12 ? 3.5 : 2.6;
+    ctx.strokeStyle = "rgba(37, 99, 235, 0.78)";
+
+    let hasStarted = false;
+    ctx.beginPath();
+    for (const point of this.points) {
+      const latLng = [point.latitude, point.longitude];
+      if (!drawBounds.contains(latLng)) {
+        hasStarted = false;
+        continue;
+      }
+      const pixel = this.map.latLngToLayerPoint(latLng).subtract(topLeft);
+      if (!hasStarted) {
+        ctx.moveTo(pixel.x, pixel.y);
+        hasStarted = true;
+      } else {
+        ctx.lineTo(pixel.x, pixel.y);
+      }
+    }
+    ctx.stroke();
   },
 });

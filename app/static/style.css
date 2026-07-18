@@ -365,7 +365,8 @@ select {
   overflow: hidden;
 }
 
-.leaflet-canvas-points {
+.leaflet-canvas-points,
+.leaflet-canvas-track {
   pointer-events: none;
 }
 
@@ -378,6 +379,7 @@ select {
 }
 
 .is-map-interacting .leaflet-canvas-points,
+.is-map-interacting .leaflet-canvas-track,
 .is-map-interacting .leaflet-overlay-pane canvas,
 .is-map-interacting .leaflet-overlay-pane svg {
   pointer-events: none;
