@@ -13,9 +13,15 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
   background: var(--bg);
   color: var(--text);
   font-family:
@@ -24,7 +30,8 @@ body {
 }
 
 .shell {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: grid;
   grid-template-rows: auto auto 1fr;
 }
@@ -139,12 +146,16 @@ select {
 
 .map-wrap {
   position: relative;
-  min-height: 480px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 #map {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 .leaflet-canvas-points {
@@ -219,6 +230,6 @@ select {
   }
 
   .map-wrap {
-    min-height: 62vh;
+    min-height: 0;
   }
 }

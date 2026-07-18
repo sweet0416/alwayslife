@@ -283,8 +283,7 @@ const CanvasPointsLayer = L.Layer.extend({
     if (!this.map || !this.ctx || !this.canvas.parentNode) return;
 
     const size = this.map.getSize();
-    const topLeft = this.map.containerPointToLayerPoint([0, 0]);
-    L.DomUtil.setPosition(this.canvas, topLeft);
+    L.DomUtil.setPosition(this.canvas, L.point(0, 0));
     this.canvas.width = size.x;
     this.canvas.height = size.y;
 
