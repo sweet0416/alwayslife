@@ -73,6 +73,12 @@ docker compose up -d --build
 http://服务器IP:8096
 ```
 
+健康检查：
+
+```text
+http://服务器IP:8096/health
+```
+
 ## 更新
 
 ```bash
@@ -172,4 +178,3 @@ config.json
 ```
 
 只提交代码、示例配置和 `data/.gitkeep`。
-

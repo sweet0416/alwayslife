@@ -7,9 +7,15 @@ services:
     ports:
       - "${APP_PORT:-8096}:8000"
     environment:
-      FOOTPRINT_CSV: /app/data/footprint.csv
-      FOOTPRINT_CONFIG: /app/config.json
+      FOOTPRINT_CSV: /project/data/footprint.csv
+      FOOTPRINT_CONFIG: /project/config.json
       TILE_URL: "${TILE_URL:-https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png}"
       TILE_ATTRIBUTION: "${TILE_ATTRIBUTION:-&copy; OpenStreetMap contributors}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     volumes:
-      - ./:/app:ro
+      - ./:/project:ro

@@ -17,6 +17,11 @@ def index() -> FileResponse:
     return FileResponse("app/static/index.html")
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.get("/api/config")
 def api_config() -> dict[str, str]:
     config = load_config()
@@ -35,4 +40,3 @@ def api_footprints() -> JSONResponse:
             status_code=404 if error.code == "missing_csv" else 422,
             content={"error": error.code, "message": error.message},
         )
-
