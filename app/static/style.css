@@ -147,6 +147,10 @@ select {
   inset: 0;
 }
 
+.leaflet-canvas-points {
+  pointer-events: none;
+}
+
 .empty {
   position: absolute;
   z-index: 500;
@@ -218,4 +222,3 @@ select {
     min-height: 62vh;
   }
 }
-

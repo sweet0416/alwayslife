@@ -4,7 +4,9 @@ const state = {
   layers: [],
   map: null,
   canvasLayer: null,
-  fitted: false,
+  summary: null,
+  requestId: 0,
+  isProgrammaticMove: false,
 };
 
 const els = {
@@ -29,18 +31,33 @@ async function init() {
 
   state.canvasLayer = new CanvasPointsLayer();
   bindControls();
-  await loadFootprints();
+  await loadSummary();
 }
 
-async function loadFootprints() {
+async function loadSummary() {
   try {
     els.status.textContent = "正在读取 data/footprint.csv";
-    const data = await fetchJson("/api/footprints");
-    state.points = data.points || [];
+    const data = await fetchJson("/api/summary");
+    state.summary = data;
     renderStats(data.stats);
-    hydrateDateControls(state.points);
-    els.status.textContent = `已载入 ${state.points.length.toLocaleString()} 个足迹点`;
-    render(true);
+    hydrateDateControls(data.stats.dates || []);
+
+    if (data.stats.bounds) {
+      state.isProgrammaticMove = true;
+      state.map.fitBounds(
+        [
+          [data.stats.bounds.south, data.stats.bounds.west],
+          [data.stats.bounds.north, data.stats.bounds.east],
+        ],
+        { maxZoom: 14, padding: [20, 20] },
+      );
+      window.setTimeout(() => {
+        state.isProgrammaticMove = false;
+        loadVisibleFootprints();
+      }, 300);
+    } else {
+      await loadVisibleFootprints();
+    }
   } catch (error) {
     renderStats();
     showEmpty(error.message || "读取 CSV 失败，请检查 data/footprint.csv。");
@@ -48,78 +65,101 @@ async function loadFootprints() {
 }
 
 function bindControls() {
+  const debouncedLoad = debounce(loadVisibleFootprints, 250);
+  state.map.on("moveend zoomend", () => {
+    if (!state.isProgrammaticMove) debouncedLoad();
+  });
+
   [els.startDate, els.endDate, els.daySelect].forEach((input) => {
-    input.addEventListener("change", () => render(true));
+    input.addEventListener("change", () => loadVisibleFootprints());
   });
 
   els.modeButtons.forEach((button) => {
     button.addEventListener("click", () => {
       state.mode = button.dataset.mode;
       els.modeButtons.forEach((item) => item.classList.toggle("active", item === button));
-      render(false);
+      render();
+      loadVisibleFootprints();
     });
   });
 }
 
-function render(shouldFit) {
-  clearLayers();
-  const points = filteredPoints();
+async function loadVisibleFootprints() {
+  if (!state.map) return;
+  const requestId = ++state.requestId;
+  const bounds = state.map.getBounds().pad(0.15);
+  const params = new URLSearchParams({
+    west: bounds.getWest().toFixed(6),
+    south: bounds.getSouth().toFixed(6),
+    east: bounds.getEast().toFixed(6),
+    north: bounds.getNorth().toFixed(6),
+    limit: String(limitForMode()),
+  });
 
-  if (!points.length) {
-    showEmpty("当前筛选条件下没有足迹点。");
+  if (els.daySelect.value) params.set("day", els.daySelect.value);
+  if (els.startDate.value) params.set("start", els.startDate.value);
+  if (els.endDate.value) params.set("end", els.endDate.value);
+
+  els.status.textContent = "正在加载当前地图范围";
+  try {
+    const data = await fetchJson(`/api/footprints?${params.toString()}`);
+    if (requestId !== state.requestId) return;
+    state.points = data.points || [];
+    render(data);
+  } catch (error) {
+    if (requestId !== state.requestId) return;
+    showEmpty(error.message || "加载当前地图范围失败。");
+  }
+}
+
+function render(meta = {}) {
+  clearLayers();
+
+  if (!state.points.length) {
+    state.canvasLayer.removeFrom(state.map);
+    showEmpty("当前地图范围或筛选条件下没有足迹点。");
     return;
   }
   hideEmpty();
 
   if (state.mode === "heat") {
     state.canvasLayer.removeFrom(state.map);
-    const heatData = points.map((point) => [point.latitude, point.longitude, 0.7]);
+    const heatData = state.points.map((point) => [point.latitude, point.longitude, 0.7]);
     addLayer(L.heatLayer(heatData, { radius: 22, blur: 18, maxZoom: 12 }));
-    els.status.textContent = `热力图：${points.length.toLocaleString()} 个足迹点`;
   } else {
-    state.canvasLayer.setPoints(points);
+    state.canvasLayer.setPoints(state.points);
     state.canvasLayer.addTo(state.map);
 
     if (state.mode === "line") {
-      const linePoints = samplePoints(points, 50000);
       addLayer(
         L.polyline(
-          linePoints.map((point) => [point.latitude, point.longitude]),
+          state.points.map((point) => [point.latitude, point.longitude]),
           { color: "#2563eb", weight: 3, opacity: 0.72 },
         ),
       );
-      els.status.textContent =
-        linePoints.length === points.length
-          ? `轨迹线：${points.length.toLocaleString()} 个足迹点`
-          : `轨迹线已抽样显示 ${linePoints.length.toLocaleString()} / ${points.length.toLocaleString()} 个点，可选择单日查看完整轨迹`;
-    } else {
-      els.status.textContent = `点模式：${points.length.toLocaleString()} 个足迹点，点击附近点可查看详情`;
     }
   }
 
-  if (shouldFit || !state.fitted) {
-    fitToPoints(points);
-    state.fitted = true;
+  els.status.textContent = statusText(meta);
+}
+
+function statusText(meta) {
+  const returned = meta.returned ?? state.points.length;
+  const matched = meta.total_matched ?? returned;
+  if (meta.sampled) {
+    return `当前范围匹配 ${matched.toLocaleString()} 个点，已抽样显示 ${returned.toLocaleString()} 个`;
   }
+  return `当前范围显示 ${returned.toLocaleString()} 个足迹点`;
 }
 
-function filteredPoints() {
-  const start = els.startDate.value;
-  const end = els.endDate.value;
-  const day = els.daySelect.value;
-
-  return state.points.filter((point) => {
-    if (day && point.date !== day) return false;
-    if (start && point.date && point.date < start) return false;
-    if (end && point.date && point.date > end) return false;
-    return true;
-  });
+function limitForMode() {
+  if (state.mode === "line") return els.daySelect.value ? 80000 : 30000;
+  if (state.mode === "heat") return 25000;
+  return 15000;
 }
 
-function hydrateDateControls(points) {
-  const dates = [...new Set(points.map((point) => point.date).filter(Boolean))].sort();
+function hydrateDateControls(dates) {
   els.daySelect.innerHTML = '<option value="">全部日期</option>';
-
   dates.forEach((date) => {
     const option = document.createElement("option");
     option.value = date;
@@ -173,24 +213,6 @@ function clearLayers() {
   state.layers = [];
 }
 
-function fitToPoints(points) {
-  const bounds = L.latLngBounds(points.map((point) => [point.latitude, point.longitude]));
-  state.map.fitBounds(bounds.pad(0.12), { maxZoom: 14 });
-}
-
-function samplePoints(points, maxCount) {
-  if (points.length <= maxCount) return points;
-  const step = Math.ceil(points.length / maxCount);
-  const sampled = [];
-  for (let i = 0; i < points.length; i += step) {
-    sampled.push(points[i]);
-  }
-  if (sampled[sampled.length - 1] !== points[points.length - 1]) {
-    sampled.push(points[points.length - 1]);
-  }
-  return sampled;
-}
-
 function showEmpty(message) {
   els.empty.textContent = message;
   els.empty.classList.remove("hidden");
@@ -222,6 +244,14 @@ function escapeHtml(value) {
   });
 }
 
+function debounce(fn, delay) {
+  let timer = null;
+  return (...args) => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => fn(...args), delay);
+  };
+}
+
 const CanvasPointsLayer = L.Layer.extend({
   initialize() {
     this.points = [];
@@ -238,19 +268,19 @@ const CanvasPointsLayer = L.Layer.extend({
   onAdd(map) {
     this.map = map;
     map.getPanes().overlayPane.appendChild(this.canvas);
-    map.on("moveend zoomend resize", this.redraw, this);
+    map.on("move zoom resize", this.redraw, this);
     map.on("click", this.clickHandler);
     this.redraw();
   },
 
   onRemove(map) {
-    L.DomUtil.remove(this.canvas);
-    map.off("moveend zoomend resize", this.redraw, this);
+    if (this.canvas.parentNode) L.DomUtil.remove(this.canvas);
+    map.off("move zoom resize", this.redraw, this);
     map.off("click", this.clickHandler);
   },
 
   redraw() {
-    if (!this.map || !this.ctx) return;
+    if (!this.map || !this.ctx || !this.canvas.parentNode) return;
 
     const size = this.map.getSize();
     const topLeft = this.map.containerPointToLayerPoint([0, 0]);
@@ -260,12 +290,13 @@ const CanvasPointsLayer = L.Layer.extend({
 
     const ctx = this.ctx;
     ctx.clearRect(0, 0, size.x, size.y);
-    ctx.fillStyle = "rgba(20, 184, 166, 0.65)";
+    ctx.fillStyle = "rgba(20, 184, 166, 0.68)";
     ctx.strokeStyle = "rgba(15, 118, 110, 0.8)";
     ctx.lineWidth = 1;
 
-    const radius = this.map.getZoom() >= 13 ? 3 : this.map.getZoom() >= 9 ? 2 : 1.4;
-    const bounds = this.map.getBounds().pad(0.1);
+    const zoom = this.map.getZoom();
+    const radius = zoom >= 13 ? 3 : zoom >= 9 ? 2 : 1.4;
+    const bounds = this.map.getBounds().pad(0.05);
 
     ctx.beginPath();
     for (const point of this.points) {
