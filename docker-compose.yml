@@ -1,0 +1,15 @@
+services:
+  footprint-map:
+    build:
+      context: .
+    container_name: footprint-map
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8096}:8000"
+    environment:
+      FOOTPRINT_CSV: /app/data/footprint.csv
+      FOOTPRINT_CONFIG: /app/config.json
+      TILE_URL: "${TILE_URL:-https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png}"
+      TILE_ATTRIBUTION: "${TILE_ATTRIBUTION:-&copy; OpenStreetMap contributors}"
+    volumes:
+      - ./:/app:ro

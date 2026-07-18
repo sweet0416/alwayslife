@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>一生足迹地图</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIINfQkhrc4nRLoxYNHDLkRICKxCcS8wLJk="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>一生足迹地图</h1>
+          <p id="statusText">正在读取 data/footprint.csv</p>
+        </div>
+        <div class="stats" id="stats"></div>
+      </header>
+
+      <section class="controls" aria-label="地图筛选">
+        <label>
+          开始日期
+          <input id="startDate" type="date" />
+        </label>
+        <label>
+          结束日期
+          <input id="endDate" type="date" />
+        </label>
+        <label>
+          单日轨迹
+          <select id="daySelect">
+            <option value="">全部日期</option>
+          </select>
+        </label>
+        <div class="mode-group" role="group" aria-label="显示模式">
+          <button class="active" data-mode="points" type="button">点</button>
+          <button data-mode="line" type="button">轨迹线</button>
+          <button data-mode="heat" type="button">热力图</button>
+        </div>
+      </section>
+
+      <section class="map-wrap">
+        <div id="map"></div>
+        <div class="empty hidden" id="emptyState"></div>
+      </section>
+    </main>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+

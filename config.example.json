@@ -1,0 +1,17 @@
+{
+  "csv_path": "./data/footprint.csv",
+  "tile_url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  "tile_attribution": "&copy; OpenStreetMap contributors",
+  "field_mapping": {
+    "time": "",
+    "longitude": "",
+    "latitude": "",
+    "address": "",
+    "city": "",
+    "province": "",
+    "country": "",
+    "altitude": "",
+    "speed": ""
+  }
+}
+
