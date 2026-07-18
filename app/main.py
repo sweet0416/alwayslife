@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -8,6 +9,7 @@ from .parser import FootprintError, load_config, parse_footprints
 
 
 app = FastAPI(title="Life Footprint Map")
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
