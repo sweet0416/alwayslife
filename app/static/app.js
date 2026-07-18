@@ -287,25 +287,28 @@ const CanvasPointsLayer = L.Layer.extend({
   redraw() {
     if (!this.map || !this.ctx || !this.canvas.parentNode) return;
 
-    const size = this.map.getSize();
-    L.DomUtil.setPosition(this.canvas, L.point(0, 0));
-    this.canvas.width = size.x;
-    this.canvas.height = size.y;
+    const drawBounds = this.map.getBounds().pad(0.1);
+    const topLeft = this.map.latLngToLayerPoint(drawBounds.getNorthWest());
+    const bottomRight = this.map.latLngToLayerPoint(drawBounds.getSouthEast());
+    const size = bottomRight.subtract(topLeft);
+
+    L.DomUtil.setPosition(this.canvas, topLeft);
+    this.canvas.width = Math.max(1, Math.ceil(size.x));
+    this.canvas.height = Math.max(1, Math.ceil(size.y));
 
     const ctx = this.ctx;
-    ctx.clearRect(0, 0, size.x, size.y);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.fillStyle = "rgba(20, 184, 166, 0.68)";
     ctx.strokeStyle = "rgba(15, 118, 110, 0.8)";
     ctx.lineWidth = 1;
 
     const zoom = this.map.getZoom();
     const radius = zoom >= 13 ? 3 : zoom >= 9 ? 2 : 1.4;
-    const bounds = this.map.getBounds().pad(0.05);
 
     ctx.beginPath();
     for (const point of this.points) {
-      if (!bounds.contains([point.latitude, point.longitude])) continue;
-      const pixel = this.map.latLngToContainerPoint([point.latitude, point.longitude]);
+      if (!drawBounds.contains([point.latitude, point.longitude])) continue;
+      const pixel = this.map.latLngToLayerPoint([point.latitude, point.longitude]).subtract(topLeft);
       ctx.moveTo(pixel.x + radius, pixel.y);
       ctx.arc(pixel.x, pixel.y, radius, 0, Math.PI * 2);
     }
