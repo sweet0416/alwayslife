@@ -23,10 +23,11 @@ init();
 
 async function init() {
   const config = await fetchJson("/api/config");
-  state.map = L.map("map", { preferCanvas: true }).setView([35.8617, 104.1954], 4);
+  state.map = L.map("map", { preferCanvas: true, worldCopyJump: true }).setView([35.8617, 104.1954], 4);
   L.tileLayer(config.tile_url, {
     maxZoom: 19,
-    noWrap: true,
+    keepBuffer: 4,
+    updateWhenIdle: false,
     attribution: config.tile_attribution,
   }).addTo(state.map);
 
