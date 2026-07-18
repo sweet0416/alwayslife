@@ -24,10 +24,18 @@ init();
 async function init() {
   const config = await fetchJson("/api/config");
   state.map = L.map("map", {
+    bounceAtZoomLimits: false,
+    inertia: true,
+    inertiaDeceleration: 2500,
+    inertiaMaxSpeed: 1600,
     preferCanvas: true,
     renderer: L.canvas({ padding: 0.35, tolerance: 8 }),
     worldCopyJump: true,
-    wheelDebounceTime: 40,
+    wheelDebounceTime: 20,
+    wheelPxPerZoomLevel: 140,
+    zoomAnimation: true,
+    zoomDelta: 0.5,
+    zoomSnap: 0.25,
   }).setView([35.8617, 104.1954], 4);
   L.tileLayer(config.tile_url, {
     maxZoom: 19,
@@ -75,7 +83,12 @@ async function loadSummary() {
 }
 
 function bindControls() {
-  const debouncedLoad = debounce(loadVisibleFootprints, 250);
+  const debouncedLoad = debounce(loadVisibleFootprints, 450);
+  const startInteraction = () => document.body.classList.add("is-map-interacting");
+  const endInteraction = debounce(() => document.body.classList.remove("is-map-interacting"), 180);
+
+  state.map.on("movestart zoomstart", startInteraction);
+  state.map.on("moveend zoomend", endInteraction);
   state.map.on("moveend zoomend", () => {
     if (!state.isProgrammaticMove) debouncedLoad();
   });
@@ -142,7 +155,7 @@ function render(meta = {}) {
     addLayer(
       L.polyline(
         state.points.map((point) => [point.latitude, point.longitude]),
-        { color: "#2563eb", opacity: 0.72, smoothFactor: 2, weight: 3 },
+        { color: "#2563eb", opacity: 0.72, smoothFactor: lineSmoothFactor(), weight: 3 },
       ),
     );
   } else {
@@ -163,9 +176,24 @@ function statusText(meta) {
 }
 
 function limitForMode() {
-  if (state.mode === "line") return els.daySelect.value ? 50000 : 12000;
-  if (state.mode === "heat") return 18000;
-  return 12000;
+  const zoom = state.map?.getZoom() ?? 4;
+  if (state.mode === "line") {
+    if (els.daySelect.value) return zoom < 8 ? 16000 : 50000;
+    if (zoom < 6) return 4000;
+    if (zoom < 9) return 8000;
+    return 14000;
+  }
+  if (state.mode === "heat") return zoom < 8 ? 12000 : 20000;
+  if (zoom < 6) return 5000;
+  if (zoom < 9) return 9000;
+  return 14000;
+}
+
+function lineSmoothFactor() {
+  const zoom = state.map?.getZoom() ?? 4;
+  if (zoom < 6) return 5;
+  if (zoom < 9) return 3;
+  return 1.5;
 }
 
 function hydrateDateControls(dates) {

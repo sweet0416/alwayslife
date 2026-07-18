@@ -369,6 +369,20 @@ select {
   pointer-events: none;
 }
 
+.leaflet-tile,
+.leaflet-pane > canvas,
+.leaflet-overlay-pane svg {
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.is-map-interacting .leaflet-canvas-points,
+.is-map-interacting .leaflet-overlay-pane canvas,
+.is-map-interacting .leaflet-overlay-pane svg {
+  pointer-events: none;
+}
+
 .empty {
   position: absolute;
   z-index: 500;
