@@ -23,11 +23,17 @@ init();
 
 async function init() {
   const config = await fetchJson("/api/config");
-  state.map = L.map("map", { preferCanvas: true, worldCopyJump: true }).setView([35.8617, 104.1954], 4);
+  state.map = L.map("map", {
+    preferCanvas: true,
+    renderer: L.canvas({ padding: 0.35, tolerance: 8 }),
+    worldCopyJump: true,
+    wheelDebounceTime: 40,
+  }).setView([35.8617, 104.1954], 4);
   L.tileLayer(config.tile_url, {
     maxZoom: 19,
     keepBuffer: 4,
     updateWhenIdle: false,
+    updateWhenZooming: false,
     attribution: config.tile_attribution,
   }).addTo(state.map);
 
@@ -131,18 +137,17 @@ function render(meta = {}) {
     state.canvasLayer.removeFrom(state.map);
     const heatData = state.points.map((point) => [point.latitude, point.longitude, 0.7]);
     addLayer(L.heatLayer(heatData, { radius: 22, blur: 18, maxZoom: 12 }));
+  } else if (state.mode === "line") {
+    state.canvasLayer.removeFrom(state.map);
+    addLayer(
+      L.polyline(
+        state.points.map((point) => [point.latitude, point.longitude]),
+        { color: "#2563eb", opacity: 0.72, smoothFactor: 2, weight: 3 },
+      ),
+    );
   } else {
     state.canvasLayer.setPoints(state.points);
     state.canvasLayer.addTo(state.map);
-
-    if (state.mode === "line") {
-      addLayer(
-        L.polyline(
-          state.points.map((point) => [point.latitude, point.longitude]),
-          { color: "#2563eb", weight: 3, opacity: 0.72 },
-        ),
-      );
-    }
   }
 
   els.status.textContent = statusText(meta);
@@ -158,9 +163,9 @@ function statusText(meta) {
 }
 
 function limitForMode() {
-  if (state.mode === "line") return els.daySelect.value ? 80000 : 30000;
-  if (state.mode === "heat") return 25000;
-  return 15000;
+  if (state.mode === "line") return els.daySelect.value ? 50000 : 12000;
+  if (state.mode === "heat") return 18000;
+  return 12000;
 }
 
 function hydrateDateControls(dates) {
@@ -263,6 +268,7 @@ const CanvasPointsLayer = L.Layer.extend({
     this.canvas = L.DomUtil.create("canvas", "leaflet-canvas-points");
     this.ctx = this.canvas.getContext("2d");
     this.clickHandler = this.handleClick.bind(this);
+    this.redrawFrame = null;
   },
 
   setPoints(points) {
@@ -273,15 +279,25 @@ const CanvasPointsLayer = L.Layer.extend({
   onAdd(map) {
     this.map = map;
     map.getPanes().overlayPane.appendChild(this.canvas);
-    map.on("move zoom resize", this.redraw, this);
+    map.on("moveend zoomend resize", this.scheduleRedraw, this);
     map.on("click", this.clickHandler);
     this.redraw();
   },
 
   onRemove(map) {
     if (this.canvas.parentNode) L.DomUtil.remove(this.canvas);
-    map.off("move zoom resize", this.redraw, this);
+    map.off("moveend zoomend resize", this.scheduleRedraw, this);
     map.off("click", this.clickHandler);
+    if (this.redrawFrame) cancelAnimationFrame(this.redrawFrame);
+    this.redrawFrame = null;
+  },
+
+  scheduleRedraw() {
+    if (this.redrawFrame) return;
+    this.redrawFrame = requestAnimationFrame(() => {
+      this.redrawFrame = null;
+      this.redraw();
+    });
   },
 
   redraw() {
